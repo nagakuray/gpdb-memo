@@ -1,0 +1,297 @@
+GPDBの勉強URL
+
+waf tech blog
+・データロード後のクエリ実行速度（postgreSQL vs GPDB)
+http://www.scutum.jp/information/waf_tech_blog/2016/02/waf-blog-045.html
+→selectした結果から新規にテーブル作るケースと単純な件数セレクトのケースを追加で見てみたい。
+
+gpdbでmapreduceする面白そうなやつ
+http://gpdb.docs.pivotal.io/4380/client_tool_guides/client/unix/gpmapreduce.html
+http://gpdb.docs.pivotal.io/4380/ref_guide/yaml_spec.html
+
+- いい感じにわかりやすい説明
+http://japan.emc.com/microsites/japan/pdf/sg1046-1-gp-db-web.pdf
+この並列処理の仕組みは、1億件を超えるような大量のデータソートを複雑なSQL文で行うような場合に威力を発揮する。アプリケーションからソート要求が来た場合、セグメントサーバは自分のストレージに格納されているデータのソートを開始する。もし、各セグメントサーバが個々にソート作業を完了させてから、マスターサーバに結果を戻し、それからマスターサーバがソート結果のマージを行い、アプリケーションに返す…というプロセスではパイプラインが途切れることになってしまう。そこでGreenplumの場合、アプリケーションの要求にあったソート結果があればセグメントサーバは随時それをマスターサーバに戻し、マスターサーバは各セグメントサーバから集まったデータを使ってソートを行い、アプリケーションに返す。この方式だとパイプラインが途切れることなくインコアで処理を行うことができ、大幅な高速化を図ることが可能になる。
+
+http://greenplum.org/gpdb-sandbox-tutorials/
+
+
+- GreenPlum Database環境構築手順
+
+1. 事前準備 (Master/Segment共通)
+# yum -y groupinstall 'Development tools'
+# yum -y install ed
+# systemctl stop firewalld.service
+# systemctl disable firewalld.service
+# systemctl list-unit-files | grep firewalld.service
+
+# vim /etc/hosts
+192.168.70.61 gpmaster
+192.168.70.71 gpsegment1
+192.168.70.72 gpsegment2
+192.168.70.73 gpsegment3
+192.168.70.74 gpsegment4
+
+
+// 以降の作業(2.~)はMasterサーバ側で実行する。
+
+2. rootでssh証明書（パスフレーズ無し）ログインできるようにする
+# cd
+# ssh-keygen -t rsa
+# cd .ssh
+# ssh-copy-id -i id_rsa.pub root@gpsegment1
+# ssh-copy-id -i id_rsa.pub root@gpsegment2
+
+3.
+# unzip greenplum-db-4.3.8.0-build-1-RHEL5-x86_64.zip
+# ./greenplum-db-4.3.8.0-build-1-RHEL5-x86_64.bin
+# vim /tmp/hostfile_all
+gpmaster
+gpsegment1
+gpsegment2
+
+# source /usr/local/greenplum-db/greenplum_path.sh
+# gpseginstall -f /tmp/hostfile_all -u gpadmin -p pivotal
+
+# gpssh-exkeys -f /tmp/hostfile_all
+
+4. masterサーバが利用するディレクトリ作成
+# mkdir -p /data/master
+# chown gpadmin:gpadmin /data/master
+
+4. segmentサーバが利用するディレクトリ作成
+# vim hostfile_segonly
+gpsegment1
+gpsegment2
+# gpssh -f hostfile_segonly -e 'mkdir -p /data/primary'
+# gpssh -f hostfile_segonly -e 'mkdir -p /data/mirror'
+# gpssh -f hostfile_segonly -e 'chown -R gpadmin:gpadmin /data/primary'
+# gpssh -f hostfile_segonly -e 'chown gpadmin:gpadmin /data/mirror'
+
+5. 設定ファイルを作成する。
+$ su - gpadmin
+$ source /usr/local/greenplum-db/greenplum_path.sh
+$ cp /usr/local/greenplum-db-4.3.8.0/docs/cli_help/gpconfigs/gpinitsystem_config ~/
+$ chmod 644 gpinitsystem_config
+$ vim gpinitsystem_config
+
+-------------------------------
+# FILE NAME: gpinitsystem_config
+
+# Configuration file needed by the gpinitsystem
+
+################################################
+#### REQUIRED PARAMETERS
+################################################
+
+#### Name of this Greenplum system enclosed in quotes.
+ARRAY_NAME="EMC Greenplum DW"
+
+#### Naming convention for utility-generated data directories.
+SEG_PREFIX=gpseg
+
+#### Base number by which primary segment port numbers
+#### are calculated.
+PORT_BASE=40000
+
+#### File system location(s) where primary segment data directories
+#### will be created. The number of locations in the list dictate
+#### the number of primary segments that will get created per
+#### physical host (if multiple addresses for a host are listed in
+#### the hostfile, the number of segments will be spread evenly across
+#### the specified interface addresses).
+declare -a DATA_DIRECTORY=(/data/primary)
+
+#### OS-configured hostname or IP address of the master host.
+MASTER_HOSTNAME=gpmaster
+
+#### File system location where the master data directory
+#### will be created.
+MASTER_DIRECTORY=/data/master
+
+#### Port number for the master instance.
+MASTER_PORT=5432
+
+#### Shell utility used to connect to remote hosts.
+TRUSTED_SHELL=ssh
+
+#### Maximum log file segments between automatic WAL checkpoints.
+CHECK_POINT_SEGMENTS=8
+
+#### Default server-side character set encoding.
+ENCODING=UNICODE
+
+################################################
+#### OPTIONAL MIRROR PARAMETERS
+################################################
+
+#### Base number by which mirror segment port numbers
+#### are calculated.
+MIRROR_PORT_BASE=50000
+
+#### Base number by which primary file replication port
+#### numbers are calculated.
+REPLICATION_PORT_BASE=41000
+
+#### Base number by which mirror file replication port
+#### numbers are calculated.
+MIRROR_REPLICATION_PORT_BASE=51000
+
+#### File system location(s) where mirror segment data directories
+#### will be created. The number of mirror locations must equal the
+#### number of primary locations as specified in the
+#### DATA_DIRECTORY parameter.
+#declare -a MIRROR_DATA_DIRECTORY=(/data/mirror)
+
+
+################################################
+#### OTHER OPTIONAL PARAMETERS
+################################################
+
+#### Create a database of this name after initialization.
+#DATABASE_NAME=name_of_database
+
+#### Specify the location of the host address file here instead of
+#### with the the -h option of gpinitsystem.
+#MACHINE_LIST_FILE=/home/gpadmin/gpconfigs/hostfile_gpinitsystem
+
+----------------------
+
+$ vim hostfile_segonly
+gpsegment1
+gpsegment2
+
+5. 初期化スクリプトの実行
+$ gpinitsystem -c gpinitsystem_config -h hostfile_segonly
+
+6. GreenPlumクラスタの起動
+$ su - gpadmin
+$ export MASTER_DATA_DIRECTORY=/data/master/gpseg-1
+$ gpstart //起動
+$ gpstop //停止
+
+7.pg_hba.confに設定追加
+$ vim /data/master/gpseg-1/pg_hba.conf
+host     all         gpadmin         192.168.70.0/24       trust # Add Record
+host     all         user1           192.168.70.0/24       trust # Add Record
+
+// 設定の反映
+$ gpstop -u
+
+
+7. データの準備
+$ su - gpadmin
+$ createdb testdb
+$ createuser user1
+$ export PGDATABASE=testdb
+$ psql testdb
+
+testdb=# GRANT ALL PRIVILEGES ON DATABASE  testdb TO user1;
+testdb=# CREATE TABLE sample_tbl(
+  number bigint,
+  code char(10),
+  test_time timestamp
+) DISTRIBUTED BY (number);
+
+testdb=# \timing
+testdb=# INSERT INTO sample_tbl SELECT number, lpad((number / 2)::text || (number % 10), 8, '0'), '2010-01-01 00:00:00'::timestamp + ('' || number || 'min')::interval FROM generate_series(1, 10000000)number;
+testdb=# SELECT * FROM sample_tbl LIMIT 10;
+testdb=# SELECT count(*), avg(substr(code, 4, 4)::int) FROM sample_tbl;
+testdb=# EXPLAIN ANALYZE SELECT count(*), avg(substr(code, 4, 4)::int) FROM sample_tbl;
+testdb=# \q
+
+$ psql testdb -c "SELECT * FROM sample_tbl" -A -F, > /var/tmp/sample_data.csv
+
+- gploadサーバの構築
+1.
+# unzip greenplum-loaders-4.3.8.0-build-1-RHEL5-x86_64.zip
+# ./greenplum-loaders-4.3.8.0-build-1-RHEL5-x86_64.bin
+# su - vagrant
+$ source /usr/local/greenplum-loaders-4.3.8.0-build-1/greenplum_loaders_path.sh
+
+
+- スケールアウト方法(gpsegment3,gpsegment4を追加する場合)
+
+1. 事前準備 (gpsegment3,gpsegment4)
+# yum groupinstall 'Development tools'
+# yum install ed
+# systemctl disable firewalld.service
+# systemctl stop firewalld.service
+# systemctl list-unit-files | grep firewalld.service
+# vim /etc/hosts
+192.168.70.61 gpmaster
+192.168.70.71 gpsegment1
+192.168.70.72 gpsegment2
+192.168.70.73 gpsegment3
+192.168.70.74 gpsegment4
+
+
+2. rootユーザのSSHkey配布(Masterで実施)
+# su -
+# vim /etc/hosts
+192.168.70.61 gpmaster
+192.168.70.71 gpsegment1
+192.168.70.72 gpsegment2
+192.168.70.73 gpsegment3
+192.168.70.73 gpsegment4
+
+# vim /home/gpadmin/hostfile_existing
+gpmaster
+gpsegment1
+gpsegment2
+
+
+# vim /home/gpadmin/hostfile_newsegonly
+gpsegment3
+gpsegment4
+
+//rootユーザの鍵の交換
+# gpssh-exkeys -e /home/gpadmin/hostfile_existing -x /home/gpadmin/hostfile_newsegonly
+
+2. gosegment3,psegment4にgreenplumをインストール
+# gpseginstall -f /home/gpadmin/hostfile_newsegonly -u gpadmin -p pivotal
+
+3. gpadminユーザの鍵の交換
+＃ su - gpadmin
+$ gpssh-exkeys -e /home/gpadmin/hostfile_existing -x /home/gpadmin/hostfile_newsegonly
+
+4. gpsegment3,gpsegment4で利用するディレクトリの作成
+$ su -
+# gpssh -f /home/gpadmin/hostfile_newsegonly -e 'mkdir -p /data/primary'
+# gpssh -f /home/gpadmin/hostfile_newsegonly -e 'mkdir -p /data/mirror'
+# gpssh -f /home/gpadmin/hostfile_newsegonly -e 'chown -R gpadmin:gpadmin /data/primary'
+# gpssh -f /home/gpadmin/hostfile_newsegonly -e 'chown gpadmin:gpadmin /data/mirror'
+
+
+4. システム拡張のためのインプットファイルを作成する。
+http://gpdb.docs.pivotal.io/4380/admin_guide/expand/expand-initialize.html
+$ su - gpadmin
+$ gpexpand -f /home/gpadmin/hostfile_newsegonly
+Would you like to initiate a new System Expansion Yy|Nn (default=N):
+> y
+What type of mirroring strategy would you like?
+ spread|grouped (default=grouped):
+>
+How many new primary segments per host do you want to add? (default=0):
+>
+Generating configuration file...
+
+20160417:07:33:00:009318 gpexpand:gpmaster:gpadmin-[INFO]:-Generating input file...
+
+Input configuration files were written to 'gpexpand_inputfile_20160417_082215' and 'None'.
+Please review the file and make sure that it is correct then re-run
+with: gpexpand -i gpexpand_inputfile_20160417_082215 -D tutorial
+
+$ cat gpexpand_inputfile_20160417_082215
+gpsegment3:gpsegment3:40000:/data/primary/gpseg2:6:2:p:41000
+gpsegment4:gpsegment4:50000:/data/mirror/gpseg2:9:2:m:51000
+gpsegment4:gpsegment4:40000:/data/primary/gpseg3:7:3:p:41000
+gpsegment3:gpsegment3:50000:/data/mirror/gpseg3:8:3:m:51000
+
+6. システム拡張の実行 (tutorialはDB名)
+$ gpexpand -i gpexpand_inputfile_20160417_082215 -D tutorial
+
+// 失敗してロールバックする場合
+$ gpstart -m
+$ gpexpand --rollback -D tutorial
+$ gpstart
