@@ -65,11 +65,11 @@ $ sudo mysql -u root -p
 ```
 
 #### データベース作成
-1. rootユーザでMySQLにログイン
+- rootユーザでMySQLにログイン
 ```
 $ mysql -u root -p
 ```
-2. rootユーザのパスワード設定
+- rootユーザのパスワード設定
 ```
 mysql> SET PASSWORD FOR root@localhost=PASSWORD('{new password}');
 ```
