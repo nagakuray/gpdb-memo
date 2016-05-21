@@ -8,8 +8,3 @@
 Markdownの書き方はここがとても参考になる。  
 http://qiita.com/tbpgr/items/989c6badefff69377da7
 
-```ruby
-aaaaaa
-aaa
-be gette
-```
