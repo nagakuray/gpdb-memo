@@ -11,6 +11,8 @@ $ sudo yum erace mysql-libs
 ```
 
 #### RPMの入手
+---
+Here!  
 [http://downloads.mysql.com/archives/community/ ](http://downloads.mysql.com/archives/community/)
 ```
 $ wget http://downloads.mysql.com/archives/get/file/MySQL-client-5.6.20-1.linux_glibc2.5.x86_64.rpm
@@ -20,6 +22,7 @@ $ wget http://downloads.mysql.com/archives/get/file/MySQL-devel-5.6.20-1.linux_g
 ```
 
 #### インストール
+---
 ```
 $ sudo yum install MySQL-client-5.6.20-1.linux_glibc2.5.x86_64.rpm
 $ sudo yum install MySQL-server-5.6.20-1.linux_glibc2.5.x86_64.rpm
@@ -28,11 +31,13 @@ $ sudo yum install MySQL-devel-5.6.20-1.linux_glibc2.5.x86_64.rpm
 ```
 
 #### インストール確認
+---
 ```
 $ mysql --version
 ```
 
 #### 設定ファイル作成
+---
 ```
 $ sudo vim /etc/my.cnf
 ```
@@ -48,26 +53,31 @@ character-set-server = utf8
 ```
 
 #### MySQL起動
+---
 ```
 $ sudo service mysql start
 ```
 
 #### root初期パスワード確認
+---
 ```
 $ cat /root/.mysql_secret
 ```
 
 #### MySQL初期設定
+---
 ```
 $ sudo mysql_secure_installation
 ```
 
 #### MySQLログイン
+---
 ```
 $ sudo mysql -u root -p
 ```
 
 #### データベース作成
+---
 - rootユーザでMySQLにログイン
 ```
 $ mysql -u root -p
@@ -76,5 +86,7 @@ $ mysql -u root -p
 ```
 mysql> SET PASSWORD FOR root@localhost=PASSWORD('{new password}');
 ```
+- my_sampleデータベースの作成
+mysql> CREATE DATABASE my_sample CHARACTER SET utf8;
 
 
