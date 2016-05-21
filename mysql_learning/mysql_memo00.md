@@ -1,4 +1,7 @@
-#### すでにmysqlに何かある確認する。
+## MySQL5.6インストール方法
+---
+#### MySQLがインストールされているかを確認
+---
 ```
 $ sudo yum list installed | grep mysql
 ```
