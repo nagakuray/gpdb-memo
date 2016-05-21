@@ -21,7 +21,7 @@ mysql> show tables from my_sample;
 ```
 
 #### テーブルスキーマの確認
-'''
+```
 mysql> show columns from tbl_exam;
 +-------+-------------+------+-----+---------+-------+
 | Field | Type        | Null | Key | Default | Extra |
@@ -31,17 +31,17 @@ mysql> show columns from tbl_exam;
 | math  | int(11)     | YES  |     | NULL    |       |
 | memo  | varchar(50) | YES  |     | nothing |       |
 +-------+-------------+------+-----+---------+-------+
-'''
+```
 
 #### create tableのDDL確認
-'''
+```
 mysql> show create table tbl_exam;
 
-'''
+```
 
 #### HAVING句でサブクエリを利用
 グループ化されたものを更に検索する場合には、HAVING句でないと出来ない。  
-'''
+```
 mysql> select eng ,count(eng) from tbl_exam group by eng having eng >75;
 +------+------------+
 | eng  | count(eng) |
@@ -49,5 +49,5 @@ mysql> select eng ,count(eng) from tbl_exam group by eng having eng >75;
 |   80 |          1 |
 |   90 |          1 |
 +------+------------+
-'''
+```
 
