@@ -5,6 +5,6 @@ create table tbl_std(
  eng_name varchar(20),
  addr1 varchar(50),
  addr2 varchar(50),
- primar key(id)
+ primary key(id)
 );
 
